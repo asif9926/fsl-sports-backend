@@ -1,12 +1,13 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465, // 587 এর বদলে 465 দিন
-    secure: true, // 465 পোর্টের জন্য এটি অবশ্যই true হতে হবে
+    service: 'gmail', // host ও port-এর বদলে service ব্যবহার করলে IPv6 সমস্যাটি আর হয় না
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false // লাইভ সার্ভারে কানেকশন ব্লক ঠেকাতে এটি খুব জরুরি
     }
 });
 
