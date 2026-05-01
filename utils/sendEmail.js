@@ -1,14 +1,19 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // এটি ব্যবহার করলে পোর্ট ও হোস্ট অটোমেটিক সেট হয়
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, 
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-    }
+    },
+    connectionTimeout: 10000, 
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+    dnsPriority: 'ipv4first' // Render-এর IPv6 এরর ফিক্স করার জন্য
 });
 
-// ট্রান্সপোর্টার ঠিক আছে কি না তা চেক করার জন্য একটি ভেরিফিকেশন কোড
 transporter.verify(function (error, success) {
     if (error) {
         console.log("SMTP Connection Error: ", error);
