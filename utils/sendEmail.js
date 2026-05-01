@@ -1,26 +1,10 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, 
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    connectionTimeout: 10000, 
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-    dnsPriority: 'ipv4first' // Render-এর IPv6 এরর ফিক্স করার জন্য
-});
+// Resend ইনিশিয়ালাইজ করা হলো (Render-এর Environment Variable থেকে API Key নিবে)
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-transporter.verify(function (error, success) {
-    if (error) {
-        console.log("SMTP Connection Error: ", error);
-    } else {
-        console.log("Server is ready to take our messages");
-    }
-});
+// আপাতত ফ্রি টায়ারে টেস্টিংয়ের জন্য Resend-এর ডিফল্ট ইমেইল
+const senderEmail = 'FSL-SPORTS <onboarding@resend.dev>';
 
 // ==========================================
 // Reusable Premium Email UI Components
@@ -76,10 +60,12 @@ exports.sendOtpEmail = async ({ to, username, otp, type }) => {
             </div>
         `;
 
-        const info = await transporter.sendMail({ from: `"FSL-SPORTS Security" <${process.env.EMAIL_USER}>`, to, subject: subjects[type], html });
-        console.log(`[Email Sent] OTP to ${to} (Message ID: ${info.messageId})`);
+        const { data, error } = await resend.emails.send({ from: senderEmail, to: [to], subject: subjects[type], html });
+        if (error) throw new Error(error.message);
+        
+        console.log(`[Resend] OTP sent to ${to} (ID: ${data.id})`);
     } catch (error) {
-        console.error(`[Email Error] Failed to send OTP to ${to}:`, error.message);
+        console.error(`[Resend Error] Failed to send OTP to ${to}:`, error.message);
         throw error;
     }
 };
@@ -107,10 +93,10 @@ exports.sendWelcomeEmail = async ({ to, username }) => {
             </div>
         `;
 
-        const info = await transporter.sendMail({ from: `"FSL-SPORTS Team" <${process.env.EMAIL_USER}>`, to, subject: 'Welcome to FSL-SPORTS! 🎉', html });
-        console.log(`[Email Sent] Welcome email to ${to} (Message ID: ${info.messageId})`);
+        const { error } = await resend.emails.send({ from: senderEmail, to: [to], subject: 'Welcome to FSL-SPORTS! 🎉', html });
+        if (error) throw new Error(error.message);
     } catch (error) {
-        console.error(`[Email Error] Failed to send Welcome Email to ${to}:`, error.message);
+        console.error(`[Resend Error] Failed to send Welcome Email to ${to}:`, error.message);
         throw error;
     }
 };
@@ -143,10 +129,10 @@ exports.sendAdminStatusEmail = async ({ to, username, status }) => {
             </div>
         `;
 
-        const info = await transporter.sendMail({ from: `"FSL-SPORTS Support" <${process.env.EMAIL_USER}>`, to, subject: `Update: Your Admin Access Request`, html });
-        console.log(`[Email Sent] Admin status update to ${to}`);
+        const { error } = await resend.emails.send({ from: senderEmail, to: [to], subject: `Update: Your Admin Access Request`, html });
+        if (error) throw new Error(error.message);
     } catch (error) {
-        console.error(`[Email Error] Failed to send Admin Status to ${to}:`, error.message);
+        console.error(`[Resend Error] Failed to send Admin Status to ${to}:`, error.message);
         throw error;
     }
 };
@@ -156,10 +142,10 @@ exports.sendAdminStatusEmail = async ({ to, username, status }) => {
 // ==========================================
 exports.sendEmail = async ({ to, subject, html }) => {
     try {
-        const info = await transporter.sendMail({ from: `"FSL-SPORTS System" <${process.env.EMAIL_USER}>`, to, subject, html });
-        console.log(`[Email Sent] Custom email to ${to}`);
+        const { error } = await resend.emails.send({ from: senderEmail, to: [to], subject, html });
+        if (error) throw new Error(error.message);
     } catch (error) {
-        console.error(`[Email Error] Failed to send custom email to ${to}:`, error.message);
+        console.error(`[Resend Error] Failed to send custom email to ${to}:`, error.message);
         throw error;
     }
 };
@@ -183,15 +169,16 @@ exports.sendBroadcastEmailToUsers = async ({ bccList, subject, body }) => {
             </div>
         `;
 
-        const info = await transporter.sendMail({ 
-            from: `"FSL-SPORTS Admin" <${process.env.EMAIL_USER}>`, 
+        const { error } = await resend.emails.send({ 
+            from: senderEmail, 
             bcc: bccList, 
             subject: subject, 
             html 
         });
-        console.log(`[Email Sent] Broadcast email sent to ${bccList.length} users successfully!`);
+        if (error) throw new Error(error.message);
+        console.log(`[Resend] Broadcast email sent to ${bccList.length} users successfully!`);
     } catch (error) {
-        console.error(`[Email Error] Failed to send Broadcast Email:`, error.message);
-        throw error; // Controller error catch korar jonno
+        console.error(`[Resend Error] Failed to send Broadcast Email:`, error.message);
+        throw error;
     }
 };
