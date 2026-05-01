@@ -1,10 +1,22 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-// Resend ইনিশিয়ালাইজ করা হলো (Render-এর Environment Variable থেকে API Key নিবে)
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false, // port 587 এর জন্য false থাকে
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
-// আপাতত ফ্রি টায়ারে টেস্টিংয়ের জন্য Resend-এর ডিফল্ট ইমেইল
-const senderEmail = 'FSL-SPORTS <onboarding@resend.dev>';
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log("Brevo Connection Error: ", error);
+    } else {
+        console.log("Brevo Server is ready to send messages!");
+    }
+});
 
 // ==========================================
 // Reusable Premium Email UI Components
