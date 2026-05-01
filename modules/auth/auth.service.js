@@ -11,8 +11,9 @@ const resolveMx = util.promisify(dns.resolveMx);
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateTokens = (userId, role) => {
-    const accessToken = jwt.sign({ id: userId, role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
-    const refreshToken = jwt.sign({ id: userId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '7d' });
+    // 🔥 মেয়াদ ৩০ দিন করে দেওয়া হলো
+    const accessToken = jwt.sign({ id: userId, role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '30d' }); 
+    const refreshToken = jwt.sign({ id: userId }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' });
     return { accessToken, refreshToken };
 };
 
@@ -149,7 +150,7 @@ exports.refreshAccessToken = async (incomingToken) => {
     const user = await User.findById(decoded.id).select('+refreshToken');
     if (!user || user.refreshToken !== incomingToken) throw new ApiError(403, 'Token revoked.');
 
-    const newAccessToken = jwt.sign({ id: user._id, role: user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15m' });
+    const newAccessToken = jwt.sign({ id: user._id, role: user.role }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '30d' });
     return { accessToken: newAccessToken };
 };
 
