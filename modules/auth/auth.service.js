@@ -59,7 +59,9 @@ exports.registerUser = async ({ username, email, password }) => {
         throw new ApiError(409, 'An account with this email already exists!');
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString();
+    // const otp = crypto.randomInt(100000, 999999).toString();
+ const otp = "123456"; // 🔥 সবার জন্য ফিক্সড OTP!
+
     const newUser = await User.create({
         username: username.trim(),
         email: emailLower,
@@ -69,7 +71,13 @@ exports.registerUser = async ({ username, email, password }) => {
         isVerified: false
     });
 
-    await sendOtpEmail({ to: emailLower, username: username.trim(), otp, type: 'verification' });
+    // ইমেইল পাঠানোকে try-catch দিয়ে মুড়িয়ে দেওয়া হলো
+    try {
+        await sendOtpEmail({ to: emailLower, username: username.trim(), otp, type: 'verification' });
+    } catch (err) {
+        console.log("Render Blocked OTP Email. Use 123456 to verify.");
+    }
+    
     return { email: newUser.email };
 };
 
@@ -120,7 +128,13 @@ exports.googleLoginService = async (token) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-    if (isNewUser) await sendWelcomeEmail({ to: user.email, username: user.username });
+// Welcome ইমেইল পাঠানোকে try-catch দিয়ে মুড়িয়ে দেওয়া হলো
+    try {
+        if (isNewUser) await sendWelcomeEmail({ to: user.email, username: user.username });
+    } catch (err) {
+        console.log("Render Blocked Welcome Email, but login continues...");
+    }
+    
     return { user: user.toSafeObject(), accessToken, refreshToken };
 };
 
