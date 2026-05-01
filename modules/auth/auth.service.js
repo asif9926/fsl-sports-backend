@@ -53,14 +53,20 @@ exports.registerUser = async ({ username, email, password }) => {
             existingUser.otp = otp;
             existingUser.expireAt = new Date(Date.now() + 10 * 60 * 1000);
             await existingUser.save({ validateBeforeSave: false });
-            await sendOtpEmail({ to: emailLower, username: existingUser.username, otp, type: 'verification' });
+            
+            try {
+                await sendOtpEmail({ to: emailLower, username: existingUser.username, otp, type: 'verification' });
+            } catch (err) {
+                console.error("Email Sending Failed in Render! Reason:", err.message);
+                throw new ApiError(500, 'Failed to send OTP email. Please check your email configuration.');
+            }
+            
             throw new ApiError(400, 'Account exists but unverified. New OTP sent!');
         }
         throw new ApiError(409, 'An account with this email already exists!');
     }
 
-    // const otp = crypto.randomInt(100000, 999999).toString();
- const otp = "123456"; // 🔥 সবার জন্য ফিক্সড OTP!
+    const otp = crypto.randomInt(100000, 999999).toString();
 
     const newUser = await User.create({
         username: username.trim(),
@@ -71,11 +77,11 @@ exports.registerUser = async ({ username, email, password }) => {
         isVerified: false
     });
 
-    // ইমেইল পাঠানোকে try-catch দিয়ে মুড়িয়ে দেওয়া হলো
     try {
         await sendOtpEmail({ to: emailLower, username: username.trim(), otp, type: 'verification' });
     } catch (err) {
-        console.log("Render Blocked OTP Email. Use 123456 to verify.");
+        console.error("Email Sending Failed in Render! Reason:", err.message);
+        throw new ApiError(500, 'Failed to send OTP email. Please check your email configuration.');
     }
     
     return { email: newUser.email };
@@ -89,10 +95,15 @@ exports.verifyOtp = async ({ email, otp }) => {
 
     user.isVerified = true;
     user.otp = undefined;
-    user.expireAt = undefined; // safety reset [cite: 334-335]
+    user.expireAt = undefined; 
     await user.save({ validateBeforeSave: false });
 
-    await sendWelcomeEmail({ to: user.email, username: user.username });
+    try {
+        await sendWelcomeEmail({ to: user.email, username: user.username });
+    } catch (err) {
+        console.error("Welcome Email Sending Failed! Reason:", err.message);
+    }
+    
     return { email: user.email };
 };
 
@@ -119,7 +130,7 @@ exports.googleLoginService = async (token) => {
             googleId,
             profileImage: picture,
             isVerified: true,
-            role: 'user' // Default role ensured [cite: 369-376]
+            role: 'user' 
         });
         isNewUser = true;
     }
@@ -128,11 +139,10 @@ exports.googleLoginService = async (token) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
-// Welcome ইমেইল পাঠানোকে try-catch দিয়ে মুড়িয়ে দেওয়া হলো
     try {
         if (isNewUser) await sendWelcomeEmail({ to: user.email, username: user.username });
     } catch (err) {
-        console.log("Render Blocked Welcome Email, but login continues...");
+         console.error("Welcome Email Sending Failed! Reason:", err.message);
     }
     
     return { user: user.toSafeObject(), accessToken, refreshToken };
@@ -183,7 +193,14 @@ exports.forgotPasswordService = async (email) => {
     user.resetPasswordOtp = resetOtp;
     user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save({ validateBeforeSave: false });
-    await sendOtpEmail({ to: email, username: user.username, otp: resetOtp, type: 'reset' });
+    
+    try {
+        await sendOtpEmail({ to: email, username: user.username, otp: resetOtp, type: 'reset' });
+    } catch (err) {
+        console.error("Email Sending Failed in Render! Reason:", err.message);
+        throw new ApiError(500, 'Failed to send reset OTP email. Please check your email configuration.');
+    }
+    
     return { email: user.email };
 };
 

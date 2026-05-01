@@ -21,9 +21,9 @@ app.set('trust proxy', 1);
 
 // Security middlewares
 
-app.use(helmet({ 
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-    crossOriginOpenerPolicy: false // <-- গুগলের পপ-আপ কাজ করার জন্য এটি যুক্ত করা হয়েছে
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" } 
 }));
 
 app.use(cors({

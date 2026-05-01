@@ -2,9 +2,8 @@ const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587, // 🔥 465 এর বদলে 587 ব্যবহার করা হলো
-    secure: false, // 🔥 587 পোর্টের জন্য এটি অবশ্যই false হতে হবে
-    requireTLS: true, // 🔥 কানেকশন সিকিউর করার জন্য এটি true
+    port: 465, // 587 এর বদলে 465 দিন
+    secure: true, // 465 পোর্টের জন্য এটি অবশ্যই true হতে হবে
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
