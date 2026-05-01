@@ -1,23 +1,3 @@
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-    host: 'smtp-relay.brevo.com',
-    port: 587,
-    secure: false, // port 587 এর জন্য false থাকে
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
-
-transporter.verify(function (error, success) {
-    if (error) {
-        console.log("Brevo Connection Error: ", error);
-    } else {
-        console.log("Brevo Server is ready to send messages!");
-    }
-});
-
 // ==========================================
 // Reusable Premium Email UI Components
 // ==========================================
@@ -39,6 +19,37 @@ const emailFooter = `
         <p style="margin: 25px 0 0; font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: 1px;">&copy; ${new Date().getFullYear()} FSL-SPORTS. All rights reserved.</p>
     </div>
 `;
+
+// ==========================================
+// Core Brevo HTTP API Sender Function
+// ==========================================
+const sendViaBrevoAPI = async (toEmail, toName, subject, htmlContent) => {
+    // এখানে আপনার Brevo অ্যাকাউন্টের জিমেইলটি দিন (Sender Email)
+    const senderEmail = 'jihad2080k@gmail.com'; 
+    
+    const payload = {
+        sender: { name: 'FSL-SPORTS', email: senderEmail },
+        to: [{ email: toEmail, name: toName || 'User' }],
+        subject: subject,
+        htmlContent: htmlContent
+    };
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+            'accept': 'application/json',
+            'api-key': process.env.BREVO_API_KEY,
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(JSON.stringify(errData));
+    }
+    return await response.json();
+};
 
 // ==========================================
 // 1. OTP Email (Beautiful Premium UI)
@@ -66,18 +77,15 @@ exports.sendOtpEmail = async ({ to, username, otp, type }) => {
                         <h2 style="margin: 0; font-size: 38px; font-weight: 900; color: #10B981; letter-spacing: 12px; text-align: center; padding-left: 12px;">${otp}</h2>
                     </div>
                     <p style="margin: 0 0 10px; font-size: 12px; font-weight: bold; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px;">⏳ Valid for 10 minutes only</p>
-                    <p style="margin: 0; font-size: 11px; color: #6b7280;">Never share this OTP with anyone.</p>
                 </div>
                 ${emailFooter}
             </div>
         `;
 
-        const { data, error } = await resend.emails.send({ from: senderEmail, to: [to], subject: subjects[type], html });
-        if (error) throw new Error(error.message);
-        
-        console.log(`[Resend] OTP sent to ${to} (ID: ${data.id})`);
+        await sendViaBrevoAPI(to, username, subjects[type], html);
+        console.log(`[HTTP API] OTP successfully sent to ${to}`);
     } catch (error) {
-        console.error(`[Resend Error] Failed to send OTP to ${to}:`, error.message);
+        console.error(`[Email Error] Failed to send OTP to ${to}:`, error.message);
         throw error;
     }
 };
@@ -88,28 +96,20 @@ exports.sendOtpEmail = async ({ to, username, otp, type }) => {
 exports.sendWelcomeEmail = async ({ to, username }) => {
     try {
         const websiteUrl = process.env.FRONTEND_URL || 'http://localhost:5173/login';
-
         const html = `
             <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; background-color: #0d131f; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
                 ${emailHeader}
                 <div style="padding: 40px 24px; text-align: center;">
                     <h2 style="color: #f3f4f6; margin-top: 0; font-size: 22px;">Welcome to the family, <span style="color: #10B981;">${username}</span>! 🎉</h2>
-                    <p style="color: #9ca3af; font-size: 15px; line-height: 1.7; margin-bottom: 35px;">
-                        Thank you for verifying your account. We are thrilled to have you on board! Explore your dashboard and experience top-notch security with our platform.
-                    </p>
-                    <a href="${websiteUrl}" style="display: inline-block; padding: 14px 32px; background-color: #10B981; color: #050811; text-decoration: none; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
-                        🚀 Go to Dashboard
-                    </a>
+                    <p style="color: #9ca3af; font-size: 15px; line-height: 1.7; margin-bottom: 35px;">Thank you for verifying your account. Explore your dashboard and experience top-notch security!</p>
+                    <a href="${websiteUrl}" style="display: inline-block; padding: 14px 32px; background-color: #10B981; color: #050811; text-decoration: none; font-weight: 900; border-radius: 8px;">🚀 Go to Dashboard</a>
                 </div>
                 ${emailFooter}
             </div>
         `;
-
-        const { error } = await resend.emails.send({ from: senderEmail, to: [to], subject: 'Welcome to FSL-SPORTS! 🎉', html });
-        if (error) throw new Error(error.message);
+        await sendViaBrevoAPI(to, username, 'Welcome to FSL-SPORTS! 🎉', html);
     } catch (error) {
-        console.error(`[Resend Error] Failed to send Welcome Email to ${to}:`, error.message);
-        throw error;
+        console.error(`[Email Error] Welcome Email failed:`, error.message);
     }
 };
 
@@ -119,34 +119,9 @@ exports.sendWelcomeEmail = async ({ to, username }) => {
 exports.sendAdminStatusEmail = async ({ to, username, status }) => {
     try {
         const isApproved = status === 'approve';
-        const websiteUrl = process.env.FRONTEND_URL || 'http://localhost:5173/login';
-        
-        const html = `
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; background-color: #0d131f; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-                <div style="background-color: ${isApproved ? '#064e3b' : '#7f1d1d'}; border-bottom: 1px solid ${isApproved ? '#047857' : '#b91c1c'}; padding: 25px 0; color: ${isApproved ? '#34d399' : '#f87171'}; text-align: center;">
-                    <h1 style="margin: 0; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">${isApproved ? 'Request Approved! ✅' : 'Request Declined ❌'}</h1>
-                </div>
-                <div style="padding: 40px 24px; text-align: center;">
-                    <p style="margin: 0 0 20px; font-size: 16px; color: #e5e7eb;">Hello, <strong style="color: ${isApproved ? '#10B981' : '#ef4444'};">${username}</strong>!</p>
-                    <p style="color: #9ca3af; font-size: 14px; line-height: 1.7; margin-bottom: 35px;">
-                        ${isApproved 
-                            ? 'Great news! Your request for Admin Access has been approved by the developer. You now have full access to the Admin Dashboard.' 
-                            : 'We regret to inform you that your request for Admin Access has been declined at this time. You can continue using your standard user profile.'}
-                    </p>
-                    <a href="${websiteUrl}" style="display: inline-block; padding: 14px 28px; background-color: #1f2937; border: 1px solid #374151; color: #e5e7eb; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">
-                        ${isApproved ? 'Explore Admin Panel' : 'Go to Profile'}
-                    </a>
-                </div>
-                ${emailFooter}
-            </div>
-        `;
-
-        const { error } = await resend.emails.send({ from: senderEmail, to: [to], subject: `Update: Your Admin Access Request`, html });
-        if (error) throw new Error(error.message);
-    } catch (error) {
-        console.error(`[Resend Error] Failed to send Admin Status to ${to}:`, error.message);
-        throw error;
-    }
+        const html = `<h2>Hello ${username}, your admin access request was ${isApproved ? 'Approved ✅' : 'Declined ❌'}.</h2>`;
+        await sendViaBrevoAPI(to, username, 'Update: Your Admin Access Request', html);
+    } catch (error) { throw error; }
 };
 
 // ==========================================
@@ -154,12 +129,8 @@ exports.sendAdminStatusEmail = async ({ to, username, status }) => {
 // ==========================================
 exports.sendEmail = async ({ to, subject, html }) => {
     try {
-        const { error } = await resend.emails.send({ from: senderEmail, to: [to], subject, html });
-        if (error) throw new Error(error.message);
-    } catch (error) {
-        console.error(`[Resend Error] Failed to send custom email to ${to}:`, error.message);
-        throw error;
-    }
+        await sendViaBrevoAPI(to, 'User', subject, html);
+    } catch (error) { throw error; }
 };
 
 // ==========================================
@@ -167,30 +138,34 @@ exports.sendEmail = async ({ to, subject, html }) => {
 // ==========================================
 exports.sendBroadcastEmailToUsers = async ({ bccList, subject, body }) => {
     try {
+        // Brevo API দিয়ে Broadcast মেইল পাঠানো (লুপ করে)
         const html = `
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; background-color: #0d131f; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #1f2937; border-radius: 16px; overflow: hidden; background-color: #0d131f;">
                 ${emailHeader}
-                <div style="padding: 40px 24px;">
-                    <h2 style="color: #10B981; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-top: 0; font-size: 18px;">System Update</h2>
-                    <div style="background-color: #050811; padding: 25px; border-radius: 12px; border: 1px solid #1f2937; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
-                        <p style="white-space: pre-wrap; font-size: 15px; color: #d1d5db; line-height: 1.8; margin: 0;">${body}</p>
-                    </div>
-                    <p style="font-size: 11px; color: #6b7280; text-align: center; margin-top: 25px; text-transform: uppercase; letter-spacing: 0.5px;">This is an official broadcast email from the FSL-SPORTS Admin Desk. Please do not reply directly to this email.</p>
-                </div>
+                <div style="padding: 40px 24px; color: #d1d5db; white-space: pre-wrap;">${body}</div>
                 ${emailFooter}
             </div>
         `;
+        
+        // সব ইউজারকে একটি রিকোয়েস্টেই মেইল পাঠানো
+        const bccArray = bccList.map(email => ({ email }));
+        const payload = {
+            sender: { name: 'FSL-SPORTS Admin', email: 'jihad2080k@gmail.com' },
+            bcc: bccArray,
+            subject: subject,
+            htmlContent: html
+        };
 
-        const { error } = await resend.emails.send({ 
-            from: senderEmail, 
-            bcc: bccList, 
-            subject: subject, 
-            html 
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: { 'accept': 'application/json', 'api-key': process.env.BREVO_API_KEY, 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
         });
-        if (error) throw new Error(error.message);
-        console.log(`[Resend] Broadcast email sent to ${bccList.length} users successfully!`);
+
+        if (!response.ok) throw new Error("Broadcast Failed");
+        console.log(`[HTTP API] Broadcast email sent successfully!`);
     } catch (error) {
-        console.error(`[Resend Error] Failed to send Broadcast Email:`, error.message);
-        throw error;
+        console.error(`[Email Error] Failed to send Broadcast Email:`, error.message);
+        throw error; //[cite: 4]
     }
 };
