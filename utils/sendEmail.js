@@ -1,13 +1,19 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // host ও port-এর বদলে service ব্যবহার করলে IPv6 সমস্যাটি আর হয় না
+    service: 'gmail', // এটি ব্যবহার করলে পোর্ট ও হোস্ট অটোমেটিক সেট হয়
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        rejectUnauthorized: false // লাইভ সার্ভারে কানেকশন ব্লক ঠেকাতে এটি খুব জরুরি
+    }
+});
+
+// ট্রান্সপোর্টার ঠিক আছে কি না তা চেক করার জন্য একটি ভেরিফিকেশন কোড
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log("SMTP Connection Error: ", error);
+    } else {
+        console.log("Server is ready to take our messages");
     }
 });
 
