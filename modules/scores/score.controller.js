@@ -13,55 +13,40 @@ const CACHE_DURATION = 5 * 60 * 1000;
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 
 // ==========================================
-// Cricbuzz Data Formatter (ম্যাজিক ট্রিক!)
+// NEW API Data Formatter (Perfectly Mapped!)
 // ==========================================
-const formatCricbuzzData = (cricbuzzData) => {
+const formatNewCricketData = (apiResponse) => {
     let formattedMatches = [];
-    if (!cricbuzzData || !cricbuzzData.typeMatches) return [];
+    
+    // API রেসপন্সের 'data' প্রপার্টির ভেতরে মূলত অ্যারেটি আছে
+    const matchesArray = apiResponse?.data || [];
 
-    cricbuzzData.typeMatches.forEach(type => {
-        if (type.seriesMatches) {
-            type.seriesMatches.forEach(series => {
-                if (series.seriesAdWrapper && series.seriesAdWrapper.matches) {
-                    series.seriesAdWrapper.matches.forEach(m => {
-                        const info = m.matchInfo;
-                        const scoreInfo = m.matchScore;
-                        
-                        let team1 = info.team1?.teamName || 'Team 1';
-                        let team2 = info.team2?.teamName || 'Team 2';
-                        
-                        let r1 = '0';
-                        let r2 = '0';
-                        
-                        // স্কোর, উইকেট এবং ওভার সুন্দরভাবে সাজানো হচ্ছে
-                        if (scoreInfo) {
-                            if (scoreInfo.team1Score) {
-                                const s = scoreInfo.team1Score.inngs2 || scoreInfo.team1Score.inngs1;
-                                if (s) r1 = s.wickets ? `${s.runs}/${s.wickets} (${s.overs})` : `${s.runs}`;
-                            }
-                            if (scoreInfo.team2Score) {
-                                const s = scoreInfo.team2Score.inngs2 || scoreInfo.team2Score.inngs1;
-                                if (s) r2 = s.wickets ? `${s.runs}/${s.wickets} (${s.overs})` : `${s.runs}`;
-                            }
-                        }
-                        
-                        // ফ্রন্টএন্ড ঠিক যে ফরম্যাটে ডেটা চায়, সেভাবে পুশ করা হচ্ছে
-                        formattedMatches.push({
-                            matchType: type.matchType || 'Match',
-                            name: `${team1} vs ${team2}`,
-                            teams: [team1, team2],
-                            status: info.status || 'Match info unavailable',
-                            score: [ { r: r1 }, { r: r2 } ] 
-                        });
-                    });
-                }
-            });
-        }
+    matchesArray.forEach(m => {
+        // নতুন API এর সঠিক Key অনুযায়ী ডেটা নেওয়া হচ্ছে
+        let team1 = m.team_a || 'Team 1';
+        let team2 = m.team_b || 'Team 2';
+        
+        // স্কোর যদি না থাকে (যেমন এখনো ব্যাট করেনি), তাহলে '0' দেখাবে
+        let score1 = m.team_a_scores || '0';
+        let score2 = m.team_b_scores || '0';
+
+        // স্ট্যাটাস একটু সুন্দর করে দেখানোর জন্য need_run_ball অথবা toss ব্যবহার করা হলো
+        let statusText = m.need_run_ball || m.toss || m.match_status || 'Match info unavailable';
+
+        // ফ্রন্টএন্ড ঠিক যে ফরম্যাটে ডেটা চায়, সেভাবে পুশ করা হচ্ছে
+        formattedMatches.push({
+            matchType: m.series || m.match_type || 'Match',
+            name: `${team1} vs ${team2}`,
+            teams: [team1, team2],
+            status: statusText,
+            score: [ { r: score1 }, { r: score2 } ] 
+        });
     });
+
     return formattedMatches;
 };
 
-// ১. Cricket Live Scores (Cricbuzz API)
+// ১. Cricket Live Scores (New API: cricket-live-line1)
 exports.getCricketScores = asyncHandler(async (req, res) => {
     const now = Date.now();
     if (cricketCache.data && (now - cricketCache.lastFetched < CACHE_DURATION)) {
@@ -70,27 +55,28 @@ exports.getCricketScores = asyncHandler(async (req, res) => {
 
     const options = {
         method: 'GET',
-        url: 'https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live',
+        url: 'https://cricket-live-line1.p.rapidapi.com/liveMatches',
         headers: {
             'x-rapidapi-key': RAPIDAPI_KEY,
-            'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+            'x-rapidapi-host': 'cricket-live-line1.p.rapidapi.com',
+            'Content-Type': 'application/json'
         },
         timeout: 10000
     };
 
     try {
         const response = await axios.request(options);
-        cricketCache.data = formatCricbuzzData(response.data); // Formatter দিয়ে ডেটা পার্স করা হচ্ছে
+        cricketCache.data = formatNewCricketData(response.data); // Formatter দিয়ে ডেটা পার্স করা হচ্ছে
         cricketCache.lastFetched = now;
 
-        res.status(200).json(new ApiResponse(200, cricketCache.data, "Fetched Cricbuzz Live Data"));
+        res.status(200).json(new ApiResponse(200, cricketCache.data, "Fetched Live Data"));
     } catch (error) {
-        console.error("Cricbuzz API Error:", error.message);
+        console.error("New Cricket API Error:", error.message);
         res.status(200).json(new ApiResponse(200, cricketCache.data || [], "Failed to fetch from API"));
     }
 });
 
-// ২. Football Live Scores (AllSportsAPI)
+// ২. Football Live Scores (AllSportsAPI - Unchanged)
 exports.getFootballScores = asyncHandler(async (req, res) => {
     const now = Date.now();
     if (footballCache.data && (now - footballCache.lastFetched < CACHE_DURATION)) {
@@ -119,7 +105,7 @@ exports.getFootballScores = asyncHandler(async (req, res) => {
     }
 });
 
-// ৩. Get Recent/Completed Matches (Cricbuzz & AllSportsAPI)
+// ৩. Get Recent/Completed Matches (New API & AllSportsAPI)
 exports.getRecentResults = asyncHandler(async (req, res) => {
     const { sport } = req.params;
     let resultsData = [];
@@ -128,15 +114,16 @@ exports.getRecentResults = asyncHandler(async (req, res) => {
         if (sport === 'cricket') {
             const options = {
                 method: 'GET',
-                url: 'https://cricbuzz-cricket.p.rapidapi.com/matches/v1/recent',
+                url: 'https://cricket-live-line1.p.rapidapi.com/recentMatches',
                 headers: {
                     'x-rapidapi-key': RAPIDAPI_KEY,
-                    'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+                    'x-rapidapi-host': 'cricket-live-line1.p.rapidapi.com',
+                    'Content-Type': 'application/json'
                 },
                 timeout: 10000
             };
             const response = await axios.request(options);
-            resultsData = formatCricbuzzData(response.data); // Formatter দিয়ে ডেটা পার্স করা হচ্ছে
+            resultsData = formatNewCricketData(response.data); // Formatter দিয়ে ডেটা পার্স করা হচ্ছে
             
         } else if (sport === 'football') {
             const options = {
@@ -189,11 +176,9 @@ exports.updateFslData = asyncHandler(async (req, res) => {
         { new: true, upsert: true }
     );
 
-    // ২. 🔥 Socket.IO এর মাধ্যমে রিয়েল-টাইম ব্রডকাস্ট (সব ইউজারের কাছে পাঠানো)
-    // (আপনার server.js এ app.set('io', io) করা থাকতে হবে, যা সাধারণত চ্যাট বানানোর সময় করা হয়)
+    // ২. 🔥 Socket.IO এর মাধ্যমে রিয়েল-টাইম ব্রডকাস্ট 
     const io = req.app.get('io'); 
     if (io) {
-        // 'fsl_score_updated' ইভেন্টে আপডেট হওয়া ডেটাটি পাঠিয়ে দিলাম
         io.emit('fsl_score_updated', updatedFslData);
     }
 
